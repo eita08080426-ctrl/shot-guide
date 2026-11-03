@@ -93,14 +93,19 @@ function point(e){
  return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height};
 }
 function rayRect(x,y,vx,vy,r){
- let enter=-Infinity,exit=Infinity,axis=-1;
+ let enter=-Infinity,exit=Infinity,enterAxis=-1,exitAxis=-1;
  for(let i=0;i<2;i++){
   const p=i?y:x,v=i?vy:vx,lo=i?r.y1:r.x1,hi=i?r.y2:r.x2;
   if(Math.abs(v)<1e-9){if(p<lo||p>hi)return null;continue}
-  let a=(lo-p)/v,b=(hi-p)/v;if(a>b)[a,b]=[b,a];
-  if(a>enter){enter=a;axis=i}exit=Math.min(exit,b);if(enter>exit)return null;
+  let a=(lo-p)/v,b=(hi-p)/v;
+  if(a>b)[a,b]=[b,a];
+  if(a>enter){enter=a;enterAxis=i}
+  if(b<exit){exit=b;exitAxis=i}
+  if(enter>exit)return null;
  }
- const t=enter>1e-4?enter:exit;
+ const inside=x>=r.x1&&x<=r.x2&&y>=r.y1&&y<=r.y2;
+ const t=inside?exit:enter;
+ const axis=inside?exitAxis:enterAxis;
  return t>1e-4?{t,axis}:null;
 }
 function calculate(){
