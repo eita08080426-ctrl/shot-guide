@@ -212,15 +212,19 @@ function render(){
    if(!pts||pts.length<2)return;
    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
    pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
+   // 水色ラインの外周に、ごく細い白い縁取りを追加。
+   // 外側の判定ラインは105.1px固定。黒い中心線は独立して細く保つ。
+   ctx.strokeStyle='rgba(255,255,255,.78)';
+   ctx.lineWidth=107.1;ctx.shadowBlur=0;ctx.stroke();
    ctx.strokeStyle='rgba(125,225,255,.28)';
-   ctx.lineWidth=Math.max(12,lineWidth*5.2);
+   ctx.lineWidth=105.1;
    ctx.shadowColor='rgba(150,235,255,.16)';ctx.shadowBlur=2;ctx.stroke();
    // ガラス表面の淡いハイライト
    ctx.shadowBlur=0;ctx.strokeStyle='rgba(225,250,255,.24)';
-   ctx.lineWidth=Math.max(2.4,lineWidth*1.25);ctx.stroke();
-   // 中央ラインは黒。背景を完全に塗りつぶさない濃さにする。
+   ctx.lineWidth=2.4;ctx.stroke();
+   // 中央ラインは黒。外側ラインの太さとは連動させない。
    ctx.strokeStyle='rgba(8,18,28,.78)';
-   ctx.lineWidth=Math.max(2.1,lineWidth*1.05);ctx.stroke();
+   ctx.lineWidth=2.1;ctx.stroke();
   };
   drawGlassPath(result.points);
   ctx.restore();
