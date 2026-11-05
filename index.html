@@ -17,6 +17,8 @@ button.active{outline:2px solid #72c8ff}
 .row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 canvas{width:100%;height:auto;display:block;background:#172235;border-radius:9px;touch-action:pan-y}
+.stage-wrap{position:relative;width:100%}
+#aimZone{position:absolute;display:none;touch-action:none;background:transparent;pointer-events:none}
 label.range{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:14px;margin:8px 0}
 input[type=range]{grid-column:1/3;width:100%;accent-color:#45b8ff}
 input[type=file]{display:none}
@@ -36,7 +38,7 @@ small{color:var(--muted);line-height:1.5}
       <input id="file" type="file" accept="image/*">
     </div>
     <div style="height:10px"></div>
-    <canvas id="stage" width="600" height="800"></canvas>
+    <div class="stage-wrap"><canvas id="stage" width="600" height="800"></canvas><div id="aimZone"></div></div>
     <p id="status" style="margin-top:9px">画像を選択してください。iPhoneでは「写真ライブラリ」からスクショを選べます。</p>
   </section>
   <section class="panel">
@@ -74,15 +76,25 @@ small{color:var(--muted);line-height:1.5}
 </main>
 <script>
 (()=>{
-const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext('2d'),aimZone=$('aimZone');
 let image=null,bounds=null,pendingBounds=null,shot=null,aim=null,blocks=[],mode='wall',first=null,dragging=false,selecting=false,selectStart=null,selectCurrent=null;
 let maxRef=10,maxDist=10000,lineWidth=2;
 function setStatus(s){$('status').textContent=s}
+function syncAimZone(){
+ if(mode!=='aim'||!bounds){aimZone.style.display='none';aimZone.style.pointerEvents='none';return}
+ const r=canvas.getBoundingClientRect();
+ const sx=r.width/canvas.width,sy=r.height/canvas.height;
+ aimZone.style.left=(bounds.x1*sx)+'px';
+ aimZone.style.top=(bounds.y1*sy)+'px';
+ aimZone.style.width=((bounds.x2-bounds.x1)*sx)+'px';
+ aimZone.style.height=((bounds.y2-bounds.y1)*sy)+'px';
+ aimZone.style.display='block';aimZone.style.pointerEvents='auto';
+}
 function setMode(m){
  mode=m;first=null;canvas.style.touchAction=m==='wall'?'none':'pan-y';
  ['wall','start','block','aim'].forEach(k=>$(''+k).classList.toggle('active',k===m));
  const msg={wall:'壁の範囲を指でなぞってください。',start:'キャラクターの中心をタップしてください。外周を囲む円形ガイドが表示されます。',block:'ブロックの左上、右下の順に2か所タップしてください。',aim:'発射位置からドラッグして狙いを決めてください。'};
- $('hint').textContent=msg[m];render();
+ $('hint').textContent=msg[m];syncAimZone();render();
 }
 function fitImage(w,h){
  const scale=Math.min(1400/w,1800/h,1);
@@ -171,6 +183,7 @@ function render(){
  }
  if(shot&&aim){ctx.save();ctx.beginPath();ctx.moveTo(shot.x,shot.y);ctx.lineTo(aim.x,aim.y);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.stroke();ctx.restore()}
  $('angle').textContent=result?result.angle.toFixed(1)+'°':'—';$('count').textContent=result?result.hits+'回':'—';$('travel').textContent=result?Math.round(result.total)+'px':'—';
+ syncAimZone();
 }
 async function loadFile(file){
  if(!file)return;
@@ -227,9 +240,15 @@ canvas.addEventListener('pointerdown',e=>{
   }
   render();
  }else if(mode==='start'){shot=p;aim=null;setStatus('発射位置を設定しました。狙いを決めてください。');render()}
- else if(mode==='aim'&&shot){dragging=true;canvas.setPointerCapture(e.pointerId);aim=p;render()}
- else if(mode==='aim'){setStatus('先に発射位置を設定してください。')}
+ else if(mode==='aim'&&!shot){setStatus('先に発射位置を設定してください。')}
 });
+aimZone.addEventListener('pointerdown',e=>{
+ if(mode!=='aim'||!shot)return;
+ e.preventDefault();dragging=true;aimZone.setPointerCapture(e.pointerId);aim=point(e);render();
+});
+aimZone.addEventListener('pointermove',e=>{if(dragging){e.preventDefault();aim=point(e);render()}});
+aimZone.addEventListener('pointerup',e=>{dragging=false;render()});
+aimZone.addEventListener('pointercancel',()=>{dragging=false;render()});
 canvas.addEventListener('pointermove',e=>{if(selecting){selectCurrent=point(e);render()}else if(dragging){aim=point(e);render()}});
 canvas.addEventListener('pointerup',()=>{
  if(selecting){const r=rect(selectStart,selectCurrent||selectStart);if(r.x2-r.x1>4&&r.y2-r.y1>4){pendingBounds=r;$('wallConfirm').disabled=false;setStatus('壁の範囲を仮設定しました。「壁を決定」を押してください。')}else{setStatus('範囲が小さすぎます。もう一度なぞってください。');$('wallConfirm').disabled=true}selecting=false;selectStart=null;selectCurrent=null;render()}
