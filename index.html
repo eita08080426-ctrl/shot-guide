@@ -57,7 +57,7 @@ small{color:var(--muted);line-height:1.5}
     <b>軌道設定</b>
     <label class="range"><span>最大反射回数</span><b id="rv">10回</b><input id="reflections" type="range" min="1" max="30" value="10"></label>
     <label class="range"><span>予測距離</span><b id="dv">10000</b><input id="distance" type="range" min="1000" max="30000" step="500" value="10000"></label>
-    <label class="range"><span>軌道の幅</span><b id="wv">3</b><input id="width" type="range" min="1" max="8" value="3"></label>
+    <label class="range"><span>線の太さ</span><b id="wv">2</b><input id="width" type="range" min="1" max="5" value="2"></label>
     <p><label><input id="show" type="checkbox" checked> 予測線を表示</label>　<label><input id="dots" type="checkbox" checked> 反射地点を表示</label></p>
   </section>
   <section class="panel">
@@ -75,7 +75,7 @@ small{color:var(--muted);line-height:1.5}
 (()=>{
 const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext('2d');
 let image=null,bounds=null,shot=null,aim=null,blocks=[],mode='wall',first=null,dragging=false,selecting=false,selectStart=null,selectCurrent=null;
-let maxRef=10,maxDist=10000,lineWidth=3;
+let maxRef=10,maxDist=10000,lineWidth=2;
 function setStatus(s){$('status').textContent=s}
 function setMode(m){
  mode=m;first=null;
@@ -134,35 +134,36 @@ function render(){
  for(const b of blocks){ctx.fillStyle='rgba(255,145,70,.18)';ctx.fillRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1);ctx.strokeStyle='#ff9850';ctx.lineWidth=2;ctx.strokeRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1)}
  const result=calculate();
  if(result&&$('show').checked){
-  // モンスト風の半透明リボン軌道。外側の白縁＋内側の淡い帯で表現する。
-  const path=()=>{ctx.beginPath();result.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y))};
-  const ribbonWidth=Math.max(20,12+lineWidth*6);
-  ctx.save();ctx.lineCap='butt';ctx.lineJoin='round';
-  path();ctx.strokeStyle='rgba(255,255,255,.62)';ctx.lineWidth=ribbonWidth+2;ctx.stroke();
-  path();ctx.strokeStyle='rgba(238,246,255,.30)';ctx.lineWidth=ribbonWidth-1;ctx.stroke();
-  path();ctx.strokeStyle='rgba(255,255,255,.42)';ctx.lineWidth=1.2;ctx.stroke();
+  // モンスト風：細い半透明の白い軌道。光彩は控えめにして背景を隠さない。
+  ctx.save();
+  ctx.beginPath();
+  result.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=lineWidth+3;ctx.shadowColor='rgba(255,255,255,.55)';ctx.shadowBlur=5;ctx.stroke();
+  ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=lineWidth;ctx.stroke();
   ctx.restore();
-  // 壁に当たる位置を円形ガイドで表示
+  // 反射地点は小さな白いリングで示す。
   if($('dots').checked)result.points.slice(1).forEach(p=>{
-   const r=Math.max(15,canvas.width/30);
-   ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-   ctx.fillStyle='rgba(225,242,255,.13)';ctx.fill();
-   ctx.strokeStyle='rgba(255,255,255,.78)';ctx.lineWidth=1.6;ctx.stroke();
-   ctx.beginPath();ctx.arc(p.x,p.y,2.2,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.85)';ctx.fill();ctx.restore();
+   ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,5.5,0,Math.PI*2);
+   ctx.strokeStyle='rgba(255,255,255,.72)';ctx.lineWidth=1.2;ctx.stroke();
+   ctx.beginPath();ctx.arc(p.x,p.y,1.5,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.8)';ctx.fill();ctx.restore();
   });
  }
- // 発射位置は光沢のあるピンク色のボールで表示
+ // 発射位置は単なる点ではなく、青紫に光る小さな球体として描画。
  if(shot){
-  const r=Math.max(13,canvas.width/42);
-  ctx.save();ctx.shadowColor='rgba(255,90,130,.65)';ctx.shadowBlur=r*.8;
-  const g=ctx.createRadialGradient(shot.x-r*.35,shot.y-r*.4,r*.08,shot.x,shot.y,r);
-  g.addColorStop(0,'#ffd6e0');g.addColorStop(.28,'#ff8fa8');g.addColorStop(.72,'#ed526f');g.addColorStop(1,'#a92750');
-  ctx.beginPath();ctx.arc(shot.x,shot.y,r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
-  ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.beginPath();ctx.ellipse(shot.x-r*.28,shot.y-r*.38,r*.28,r*.16,-.55,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.72)';ctx.fill();
+  const r=Math.max(13,canvas.width/43);
+  ctx.save();
+  const glow=ctx.createRadialGradient(shot.x,shot.y,1,shot.x,shot.y,r*2.4);
+  glow.addColorStop(0,'rgba(111,221,255,.48)');glow.addColorStop(.55,'rgba(95,133,255,.2)');glow.addColorStop(1,'rgba(95,133,255,0)');
+  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(shot.x,shot.y,r*2.4,0,Math.PI*2);ctx.fill();
+  const ball=ctx.createRadialGradient(shot.x-r*.35,shot.y-r*.42,r*.08,shot.x,shot.y,r);
+  ball.addColorStop(0,'#ffffff');ball.addColorStop(.18,'#b9f4ff');ball.addColorStop(.48,'#55bfff');ball.addColorStop(.78,'#5869d9');ball.addColorStop(1,'#272d78');
+  ctx.beginPath();ctx.arc(shot.x,shot.y,r,0,Math.PI*2);ctx.fillStyle=ball;ctx.shadowColor='rgba(115,204,255,.9)';ctx.shadowBlur=12;ctx.fill();
+  ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=1.4;ctx.stroke();
+  ctx.beginPath();ctx.ellipse(shot.x-r*.25,shot.y-r*.42,r*.3,r*.15,-.55,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.82)';ctx.fill();
   ctx.restore();
  }
- if(shot&&aim){ctx.beginPath();ctx.moveTo(shot.x,shot.y);ctx.lineTo(aim.x,aim.y);ctx.strokeStyle='rgba(255,135,160,.55)';ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.stroke();ctx.setLineDash([])}
+ if(shot&&aim){ctx.save();ctx.beginPath();ctx.moveTo(shot.x,shot.y);ctx.lineTo(aim.x,aim.y);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.stroke();ctx.restore()}
  $('angle').textContent=result?result.angle.toFixed(1)+'°':'—';$('count').textContent=result?result.hits+'回':'—';$('travel').textContent=result?Math.round(result.total)+'px':'—';
 }
 async function loadFile(file){
