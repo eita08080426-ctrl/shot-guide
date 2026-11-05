@@ -56,6 +56,7 @@ small{color:var(--muted);line-height:1.5}
   <section class="panel">
     <div class="row">
       <label class="filebtn primary" for="file">写真・スクショを読み込む</label>
+      <button id="mainCrop" disabled>画像をトリミング</button>
       <button id="clear">画像・設定をリセット</button>
       <input id="file" type="file" accept="image/*">
     </div>
@@ -103,8 +104,6 @@ small{color:var(--muted);line-height:1.5}
       <button id="quickStart">② 発射位置</button>
       <button id="quickBlock">③ ブロック追加</button>
       <button id="quickAim">④ 狙いを決める</button>
-      <button id="quickCrop">⑤ トリミング</button>
-      <button id="quickAdd">スクショを追加</button>
     </div>
     <button id="quickWallConfirm" disabled>壁を決定</button>
   </div>
@@ -130,7 +129,6 @@ const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext(
 let image=null,bounds=null,pendingBounds=null,shot=null,aim=null,blocks=[],mode='wall',first=null,dragging=false,selecting=false,selectStart=null,selectCurrent=null;
 let cropSource=null,cropRect=null,cropDrag=null,cropLoadState=null;
 let maxRef=10,maxDist=10000,lineWidth=2;
-function launchRadius(){return Math.max(30,canvas.width*.075)}
 function setStatus(s){$('status').textContent=s}
 function syncAimZone(){
  if(mode!=='aim'||!bounds){aimZone.style.display='none';aimZone.style.pointerEvents='none';return}
@@ -201,22 +199,20 @@ function render(){
  for(const b of blocks){ctx.fillStyle='rgba(255,145,70,.18)';ctx.fillRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1);ctx.strokeStyle='#ff9850';ctx.lineWidth=2;ctx.strokeRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1)}
  const result=calculate();
  if(result&&$('show').checked){
-  // 発射位置の円の直径を基準に、キャラクターの判定幅に近い太さで軌道を描く。
-  // 線の太さスライダーは円の半径に対する倍率として扱う（初期値2で直径と同じ）。
-  const trajectoryWidth=launchRadius()*lineWidth;
+  // モンスト風：細い半透明の白い軌道。光彩は控えめにして背景を隠さない。
   ctx.save();
   ctx.lineCap='round';ctx.lineJoin='round';
   // 1反射目までを明るいシアンにして、白い2反射目以降と見分けやすくする。
   if(result.points.length>1){
    ctx.beginPath();ctx.moveTo(result.points[0].x,result.points[0].y);ctx.lineTo(result.points[1].x,result.points[1].y);
-   ctx.strokeStyle='rgba(65,220,255,.24)';ctx.lineWidth=trajectoryWidth+5;ctx.shadowColor='rgba(65,220,255,.9)';ctx.shadowBlur=7;ctx.stroke();
-   ctx.shadowBlur=0;ctx.strokeStyle='rgba(75,225,255,.82)';ctx.lineWidth=trajectoryWidth;ctx.stroke();
+   ctx.strokeStyle='rgba(65,220,255,.08)';ctx.lineWidth=lineWidth+1;ctx.shadowColor='rgba(65,220,255,.12)';ctx.shadowBlur=1;ctx.stroke();
+   ctx.shadowBlur=0;ctx.strokeStyle='rgba(75,225,255,.28)';ctx.lineWidth=Math.max(1,lineWidth*.75);ctx.stroke();
   }
   if(result.points.length>2){
    ctx.beginPath();ctx.moveTo(result.points[1].x,result.points[1].y);
    result.points.slice(2).forEach(p=>ctx.lineTo(p.x,p.y));
-   ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=trajectoryWidth+3;ctx.shadowColor='rgba(255,255,255,.55)';ctx.shadowBlur=5;ctx.stroke();
-   ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.72)';ctx.lineWidth=trajectoryWidth;ctx.stroke();
+   ctx.strokeStyle='rgba(255,255,255,.07)';ctx.lineWidth=lineWidth+1;ctx.shadowColor='rgba(255,255,255,.10)';ctx.shadowBlur=1;ctx.stroke();
+   ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.30)';ctx.lineWidth=Math.max(1,lineWidth*.75);ctx.stroke();
   }
   ctx.restore();
   // 反射地点は見やすい大きめの白いリングで示す。
@@ -228,7 +224,7 @@ function render(){
  }
  // 発射位置：キャラクター全体を囲う白い円。中心座標は計算用に維持。
  if(shot){
-  const r=launchRadius();
+  const r=Math.max(30,canvas.width*.075);
   ctx.save();
   ctx.beginPath();ctx.arc(shot.x,shot.y,r,0,Math.PI*2);
   ctx.strokeStyle='rgba(255,255,255,.96)';
@@ -294,7 +290,7 @@ function finishCrop(useCrop){
  const sx=useCrop?cropRect.x*sw/cropCanvas.width:0,sy=useCrop?cropRect.y*sh/cropCanvas.height:0;
  const sw2=useCrop?cropRect.w*sw/cropCanvas.width:sw,sh2=useCrop?cropRect.h*sh/cropCanvas.height:sh;
  const out=document.createElement('canvas');out.width=Math.max(1,Math.round(sw2));out.height=Math.max(1,Math.round(sh2));out.getContext('2d').drawImage(cropSource,sx,sy,sw2,sh2,0,0,out.width,out.height);
- image=out;fitImage(out.width,out.height);
+ image=out;fitImage(out.width,out.height);$('mainCrop').disabled=false;
  const {previousWidth,previousHeight,savedBounds}=cropLoadState;
  pendingBounds=null;$('wallConfirm').disabled=true;$('quickWallConfirm').disabled=true;shot=null;aim=null;blocks=[];
  if(savedBounds&&!useCrop){const x=canvas.width/previousWidth,y=canvas.height/previousHeight;bounds={x1:savedBounds.x1*x,y1:savedBounds.y1*y,x2:savedBounds.x2*x,y2:savedBounds.y2*y};setStatus('読み込み成功！前のスクショの壁設定を引き継ぎました。');setMode('start')}
@@ -307,12 +303,13 @@ $('file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0
 function chooseScreenshot(){ $('file').click(); }
 $('recentAdd').onclick=()=>{ $('recentPrompt').style.display='none';chooseScreenshot(); };
 $('recentLater').onclick=()=>{ $('recentPrompt').style.display='none'; };
-$('quickAdd').onclick=chooseScreenshot;
-$('quickCrop').onclick=()=>{
+function startCrop(){
  if(!image){setStatus('先にスクショを読み込んでください。');return;}
  const previousWidth=canvas.width,previousHeight=canvas.height,savedBounds=bounds?{...bounds}:null;
  cropLoadState={previousWidth,previousHeight,savedBounds};openCropper(canvas);
-};
+}
+$('mainCrop').onclick=startCrop;
+$('file').addEventListener('change',()=>{$('mainCrop').disabled=!image});
 canvas.addEventListener('pointerdown',e=>{
  if(!image)return;const p=point(e);
  if(mode==='wall'){
@@ -368,7 +365,7 @@ window.addEventListener('resize',()=>{if(!dock.classList.contains('moved'))retur
 restoreDockPosition();
 $('recentPrompt').style.display='flex';
 $('undo').onclick=()=>{blocks.pop();render()};$('remove').onclick=()=>{blocks=[];render()};
-$('clear').onclick=()=>{image=null;bounds=null;pendingBounds=null;$('wallConfirm').disabled=true;$('quickWallConfirm').disabled=true;shot=null;aim=null;blocks=[];fitImage(600,800);setStatus('画像を選択してください。');setMode('wall')};
+$('clear').onclick=()=>{image=null;$('mainCrop').disabled=true;bounds=null;pendingBounds=null;$('wallConfirm').disabled=true;$('quickWallConfirm').disabled=true;shot=null;aim=null;blocks=[];fitImage(600,800);setStatus('画像を選択してください。');setMode('wall')};
 $('reflections').oninput=e=>{maxRef=+e.target.value;$('rv').textContent=maxRef+'回';render()};
 $('distance').oninput=e=>{maxDist=+e.target.value;$('dv').textContent=maxDist;render()};
 $('width').oninput=e=>{lineWidth=+e.target.value;$('wv').textContent=lineWidth;render()};
