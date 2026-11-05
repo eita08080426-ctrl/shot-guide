@@ -16,7 +16,7 @@ button.primary,.filebtn.primary{background:var(--accent);border-color:var(--acce
 button.active{outline:2px solid #72c8ff}
 .row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-canvas{width:100%;height:auto;display:block;background:#172235;border-radius:9px;touch-action:none}
+canvas{width:100%;height:auto;display:block;background:#172235;border-radius:9px;touch-action:pan-y}
 label.range{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:14px;margin:8px 0}
 input[type=range]{grid-column:1/3;width:100%;accent-color:#45b8ff}
 input[type=file]{display:none}
@@ -47,7 +47,8 @@ small{color:var(--muted);line-height:1.5}
       <button id="block">③ ブロック追加</button>
       <button id="aim">④ 狙いを決める</button>
     </div>
-    <p id="hint" style="margin-top:10px">壁の左上、右下の順にタップしてください。</p>
+    <p id="hint" style="margin-top:10px">壁の範囲を指でなぞってください。</p>
+    <button id="wallConfirm" class="primary" style="width:100%;margin-top:10px" disabled>壁を決定</button>
     <div class="row" style="margin-top:10px">
       <button id="undo">最後のブロックを削除</button>
       <button id="remove">ブロック全削除</button>
@@ -58,8 +59,6 @@ small{color:var(--muted);line-height:1.5}
     <label class="range"><span>最大反射回数</span><b id="rv">10回</b><input id="reflections" type="range" min="1" max="30" value="10"></label>
     <label class="range"><span>予測距離</span><b id="dv">10000</b><input id="distance" type="range" min="1000" max="30000" step="500" value="10000"></label>
     <label class="range"><span>線の太さ</span><b id="wv">2</b><input id="width" type="range" min="1" max="5" value="2"></label>
-    <label class="range"><span>発射位置の円の大きさ</span><b id="sr">7.5%</b><input id="startRadius" type="range" min="3" max="15" step="0.5" value="7.5"></label>
-    <label class="range"><span>反射地点の円の大きさ</span><b id="rr">18px</b><input id="reflectionRadius" type="range" min="8" max="40" value="18"></label>
     <p><label><input id="show" type="checkbox" checked> 予測線を表示</label>　<label><input id="dots" type="checkbox" checked> 反射地点を表示</label></p>
   </section>
   <section class="panel">
@@ -76,11 +75,11 @@ small{color:var(--muted);line-height:1.5}
 <script>
 (()=>{
 const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext('2d');
-let image=null,bounds=null,shot=null,aim=null,blocks=[],mode='wall',first=null,dragging=false,selecting=false,selectStart=null,selectCurrent=null;
-let maxRef=10,maxDist=10000,lineWidth=2,startRadiusRatio=0.075,reflectionRadius=18;
+let image=null,bounds=null,pendingBounds=null,shot=null,aim=null,blocks=[],mode='wall',first=null,dragging=false,selecting=false,selectStart=null,selectCurrent=null;
+let maxRef=10,maxDist=10000,lineWidth=2;
 function setStatus(s){$('status').textContent=s}
 function setMode(m){
- mode=m;first=null;
+ mode=m;first=null;canvas.style.touchAction=m==='wall'?'none':'pan-y';
  ['wall','start','block','aim'].forEach(k=>$(''+k).classList.toggle('active',k===m));
  const msg={wall:'壁の範囲を指でなぞってください。',start:'キャラクターの中心をタップしてください。外周を囲む円形ガイドが表示されます。',block:'ブロックの左上、右下の順に2か所タップしてください。',aim:'発射位置からドラッグして狙いを決めてください。'};
  $('hint').textContent=msg[m];render();
@@ -132,33 +131,42 @@ function render(){
  if(image)ctx.drawImage(image,0,0,canvas.width,canvas.height);
  else{ctx.fillStyle='#172235';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#e8f1fb';ctx.font='18px sans-serif';ctx.fillText('スクリーンショットを読み込んでください',18,45)}
  if(bounds){ctx.strokeStyle='#36d5ff';ctx.lineWidth=2;ctx.setLineDash([8,5]);ctx.strokeRect(bounds.x1,bounds.y1,bounds.x2-bounds.x1,bounds.y2-bounds.y1);ctx.setLineDash([])}
+ if(pendingBounds){ctx.fillStyle='rgba(54,213,255,.10)';ctx.fillRect(pendingBounds.x1,pendingBounds.y1,pendingBounds.x2-pendingBounds.x1,pendingBounds.y2-pendingBounds.y1);ctx.strokeStyle='#65e5ff';ctx.lineWidth=3;ctx.setLineDash([8,5]);ctx.strokeRect(pendingBounds.x1,pendingBounds.y1,pendingBounds.x2-pendingBounds.x1,pendingBounds.y2-pendingBounds.y1);ctx.setLineDash([])}
  if(selecting&&selectStart&&selectCurrent){const r=rect(selectStart,selectCurrent);ctx.fillStyle='rgba(54,213,255,.12)';ctx.fillRect(r.x1,r.y1,r.x2-r.x1,r.y2-r.y1);ctx.strokeStyle=mode==='wall'?'#36d5ff':'#ff9850';ctx.lineWidth=3;ctx.setLineDash([7,4]);ctx.strokeRect(r.x1,r.y1,r.x2-r.x1,r.y2-r.y1);ctx.setLineDash([])}
  for(const b of blocks){ctx.fillStyle='rgba(255,145,70,.18)';ctx.fillRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1);ctx.strokeStyle='#ff9850';ctx.lineWidth=2;ctx.strokeRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1)}
  const result=calculate();
  if(result&&$('show').checked){
   // モンスト風：細い半透明の白い軌道。光彩は控えめにして背景を隠さない。
   ctx.save();
-  ctx.beginPath();
-  result.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
   ctx.lineCap='round';ctx.lineJoin='round';
-  ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=lineWidth+3;ctx.shadowColor='rgba(255,255,255,.55)';ctx.shadowBlur=5;ctx.stroke();
-  ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=lineWidth;ctx.stroke();
+  // 1反射目までを明るいシアンにして、白い2反射目以降と見分けやすくする。
+  if(result.points.length>1){
+   ctx.beginPath();ctx.moveTo(result.points[0].x,result.points[0].y);ctx.lineTo(result.points[1].x,result.points[1].y);
+   ctx.strokeStyle='rgba(65,220,255,.42)';ctx.lineWidth=lineWidth+5;ctx.shadowColor='rgba(65,220,255,.9)';ctx.shadowBlur=7;ctx.stroke();
+   ctx.shadowBlur=0;ctx.strokeStyle='rgba(75,225,255,.98)';ctx.lineWidth=lineWidth;ctx.stroke();
+  }
+  if(result.points.length>2){
+   ctx.beginPath();ctx.moveTo(result.points[1].x,result.points[1].y);
+   result.points.slice(2).forEach(p=>ctx.lineTo(p.x,p.y));
+   ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=lineWidth+3;ctx.shadowColor='rgba(255,255,255,.55)';ctx.shadowBlur=5;ctx.stroke();
+   ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=lineWidth;ctx.stroke();
+  }
   ctx.restore();
   // 反射地点は見やすい大きめの白いリングで示す。
   if($('dots').checked)result.points.slice(1).forEach(p=>{
-   ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,reflectionRadius,0,Math.PI*2);
-   ctx.strokeStyle='rgba(255,255,255,.58)';ctx.lineWidth=2;ctx.shadowColor='rgba(255,255,255,.28)';ctx.shadowBlur=4;ctx.stroke();
-   ctx.shadowBlur=0;ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.58)';ctx.fill();ctx.restore();
+   ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,18,0,Math.PI*2);
+   ctx.strokeStyle='rgba(255,255,255,.92)';ctx.lineWidth=2.5;ctx.shadowColor='rgba(255,255,255,.75)';ctx.shadowBlur=6;ctx.stroke();
+   ctx.shadowBlur=0;ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.92)';ctx.fill();ctx.restore();
   });
  }
  // 発射位置：キャラクター全体を囲う白い円。中心座標は計算用に維持。
  if(shot){
-  const r=Math.max(18,canvas.width*startRadiusRatio);
+  const r=Math.max(30,canvas.width*.075);
   ctx.save();
   ctx.beginPath();ctx.arc(shot.x,shot.y,r,0,Math.PI*2);
-  ctx.strokeStyle='rgba(255,255,255,.58)';
+  ctx.strokeStyle='rgba(255,255,255,.96)';
   ctx.lineWidth=Math.max(2,canvas.width*.004);
-  ctx.shadowColor='rgba(255,255,255,.28)';ctx.shadowBlur=4;ctx.stroke();
+  ctx.shadowColor='rgba(255,255,255,.7)';ctx.shadowBlur=7;ctx.stroke();
   ctx.restore();
  }
  if(shot&&aim){ctx.save();ctx.beginPath();ctx.moveTo(shot.x,shot.y);ctx.lineTo(aim.x,aim.y);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.stroke();ctx.restore()}
@@ -183,7 +191,7 @@ async function loadFile(file){
     fitImage(image.naturalWidth,image.naturalHeight);
    }finally{URL.revokeObjectURL(url)}
   }
-  bounds=null;shot=null;aim=null;blocks=[];setStatus('読み込み成功！壁の範囲を設定してください。');setMode('wall');
+  bounds=null;pendingBounds=null;$('wallConfirm').disabled=true;shot=null;aim=null;blocks=[];setStatus('読み込み成功！壁の範囲を設定してください。');setMode('wall');
  }catch(err){
   setStatus('読み込み失敗：'+(err&&err.message?err.message:'画像を開けませんでした')+'。スクショをJPEGまたはPNGとして保存して再試行してください。');
  }
@@ -192,7 +200,7 @@ $('file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0
 canvas.addEventListener('pointerdown',e=>{
  if(!image)return;const p=point(e);
  if(mode==='wall'){
-  selecting=true;selectStart=p;selectCurrent=p;canvas.setPointerCapture(e.pointerId);render();
+  selecting=true;pendingBounds=null;$('wallConfirm').disabled=true;selectStart=p;selectCurrent=p;canvas.setPointerCapture(e.pointerId);render();
  }else if(mode==='block'){
   if(!first){
    first=p;
@@ -215,18 +223,17 @@ canvas.addEventListener('pointerdown',e=>{
 });
 canvas.addEventListener('pointermove',e=>{if(selecting){selectCurrent=point(e);render()}else if(dragging){aim=point(e);render()}});
 canvas.addEventListener('pointerup',()=>{
- if(selecting){const r=rect(selectStart,selectCurrent||selectStart);if(r.x2-r.x1>4&&r.y2-r.y1>4){bounds=r;setStatus('壁の範囲を設定しました。')}else setStatus('範囲が小さすぎます。もう一度なぞってください。');selecting=false;selectStart=null;selectCurrent=null;render()}
+ if(selecting){const r=rect(selectStart,selectCurrent||selectStart);if(r.x2-r.x1>4&&r.y2-r.y1>4){pendingBounds=r;$('wallConfirm').disabled=false;setStatus('壁の範囲を仮設定しました。「壁を決定」を押してください。')}else{setStatus('範囲が小さすぎます。もう一度なぞってください。');$('wallConfirm').disabled=true}selecting=false;selectStart=null;selectCurrent=null;render()}
  dragging=false;render();
 });
 canvas.addEventListener('pointercancel',()=>{selecting=false;selectStart=null;selectCurrent=null;dragging=false;render()});
+$('wallConfirm').onclick=()=>{if(!pendingBounds)return;bounds=pendingBounds;pendingBounds=null;$('wallConfirm').disabled=true;setStatus('壁を決定しました。発射位置を設定してください。');setMode('start')};
 $('wall').onclick=()=>setMode('wall');$('start').onclick=()=>setMode('start');$('block').onclick=()=>setMode('block');$('aim').onclick=()=>setMode('aim');
 $('undo').onclick=()=>{blocks.pop();render()};$('remove').onclick=()=>{blocks=[];render()};
-$('clear').onclick=()=>{image=null;bounds=null;shot=null;aim=null;blocks=[];fitImage(600,800);setStatus('画像を選択してください。');setMode('wall')};
+$('clear').onclick=()=>{image=null;bounds=null;pendingBounds=null;$('wallConfirm').disabled=true;shot=null;aim=null;blocks=[];fitImage(600,800);setStatus('画像を選択してください。');setMode('wall')};
 $('reflections').oninput=e=>{maxRef=+e.target.value;$('rv').textContent=maxRef+'回';render()};
 $('distance').oninput=e=>{maxDist=+e.target.value;$('dv').textContent=maxDist;render()};
 $('width').oninput=e=>{lineWidth=+e.target.value;$('wv').textContent=lineWidth;render()};
-$('startRadius').oninput=e=>{startRadiusRatio=+e.target.value/100;$('sr').textContent=e.target.value+'%';render()};
-$('reflectionRadius').oninput=e=>{reflectionRadius=+e.target.value;$('rr').textContent=reflectionRadius+'px';render()};
 $('show').onchange=render;$('dots').onchange=render;
 $('save').onclick=()=>{if(!image){setStatus('先にスクショを読み込んでください');return}const a=document.createElement('a');a.download='shot-guide.png';a.href=canvas.toDataURL('image/png');a.click()};
 fitImage(600,800);render();
