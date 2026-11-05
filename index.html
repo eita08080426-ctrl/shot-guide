@@ -4,11 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#172235">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icon-192.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ショットガイド">
 <title>ショットガイド - 反射軌道シミュレーター</title>
 <style>
 :root{color-scheme:dark;--bg:#101827;--panel:#1c293b;--line:#34445b;--text:#f4f7fb;--muted:#aab8ca;--accent:#258bd8}
@@ -33,12 +28,18 @@ input[type=file]{display:none}
 #cropStage{display:block;width:auto;height:auto;max-width:100%;max-height:56vh;touch-action:none;border-radius:4px}
 #cropActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #cropApply{background:#258bd8;border-color:#258bd8}
+#recentPrompt{display:none;position:fixed;inset:0;z-index:110;background:rgba(4,10,18,.82);padding:20px;align-items:center;justify-content:center}
+#recentCard{width:min(360px,100%);background:#1c293b;border:1px solid #40536d;border-radius:16px;padding:18px;display:grid;gap:12px;box-shadow:0 10px 32px rgba(0,0,0,.4)}
+#recentActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 small{color:var(--muted);line-height:1.5}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .stat{background:#111d2d;padding:10px;border-radius:9px}.stat span{display:block;color:var(--muted);font-size:11px}.stat b{font-size:16px}
 #status{font-size:13px;color:#b8d4ec;overflow-wrap:anywhere}
 /* 画面下部に固定するクイック手順パネル */
-#quickDock{position:fixed;z-index:50;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));font-family:inherit;touch-action:manipulation}
+#quickDock{position:fixed;z-index:50;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));font-family:inherit;touch-action:none;user-select:none;-webkit-user-select:none}
+#quickToggle{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#quickToggle.dragging{cursor:grabbing;opacity:.82}
+#quickDock.moved #quickToggle::after{content:' ⋮⋮';font-size:11px;opacity:.65}
 #quickToggle{border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(24,39,58,.88);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 5px 22px rgba(0,0,0,.35);padding:12px 17px;font-size:14px}
 #quickPanel{display:none;width:min(310px,calc(100vw - 28px));margin-bottom:9px;padding:12px;border:1px solid rgba(255,255,255,.2);border-radius:18px;background:rgba(20,33,50,.9);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 8px 28px rgba(0,0,0,.4)}
 #quickPanel.open{display:block}
@@ -102,6 +103,8 @@ small{color:var(--muted);line-height:1.5}
       <button id="quickStart">② 発射位置</button>
       <button id="quickBlock">③ ブロック追加</button>
       <button id="quickAim">④ 狙いを決める</button>
+      <button id="quickCrop">⑤ トリミング</button>
+      <button id="quickAdd">スクショを追加</button>
     </div>
     <button id="quickWallConfirm" disabled>壁を決定</button>
   </div>
@@ -112,6 +115,13 @@ small{color:var(--muted);line-height:1.5}
   <div><b>スクショをトリミング</b><p style="margin-top:5px">白い枠の端や角をドラッグして、残したいゲーム画面を囲んでください。枠の内側をドラッグすると位置を動かせます。</p></div>
   <div id="cropStageWrap"><canvas id="cropStage"></canvas></div>
   <div id="cropActions"><button id="cropApply" class="primary">この範囲で切り取る</button><button id="cropSkip">切り取らずに使う</button></div>
+ </div>
+</div>
+<div id="recentPrompt" role="dialog" aria-modal="true" aria-label="最新のスクリーンショットを追加">
+ <div id="recentCard">
+  <b>直近にスクショした画像を追加しますか？</b>
+  <p>「追加する」を押すと写真ライブラリが開きます。最近の項目から最新のスクショを選んでください。</p>
+  <div id="recentActions"><button id="recentLater">あとで</button><button id="recentAdd" class="primary">追加する</button></div>
  </div>
 </div>
 <script>
@@ -291,6 +301,15 @@ function finishCrop(useCrop){
 $('cropApply').onclick=()=>{if(cropRect&&cropRect.w>=24&&cropRect.h>=24)finishCrop(true);else setStatus('切り取る範囲をもう少し大きくしてください。')};
 $('cropSkip').onclick=()=>finishCrop(false);
 $('file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f)loadFile(f);e.target.value=''});
+function chooseScreenshot(){ $('file').click(); }
+$('recentAdd').onclick=()=>{ $('recentPrompt').style.display='none';chooseScreenshot(); };
+$('recentLater').onclick=()=>{ $('recentPrompt').style.display='none'; };
+$('quickAdd').onclick=chooseScreenshot;
+$('quickCrop').onclick=()=>{
+ if(!image){setStatus('先にスクショを読み込んでください。');return;}
+ const previousWidth=canvas.width,previousHeight=canvas.height,savedBounds=bounds?{...bounds}:null;
+ cropLoadState={previousWidth,previousHeight,savedBounds};openCropper(canvas);
+};
 canvas.addEventListener('pointerdown',e=>{
  if(!image)return;const p=point(e);
  if(mode==='wall'){
@@ -331,7 +350,20 @@ function confirmWall(){if(!pendingBounds)return;bounds=pendingBounds;pendingBoun
 $('wallConfirm').onclick=confirmWall;$('quickWallConfirm').onclick=confirmWall;
 $('wall').onclick=()=>setMode('wall');$('start').onclick=()=>setMode('start');$('block').onclick=()=>setMode('block');$('aim').onclick=()=>setMode('aim');
 $('quickWall').onclick=()=>setMode('wall');$('quickStart').onclick=()=>setMode('start');$('quickBlock').onclick=()=>setMode('block');$('quickAim').onclick=()=>setMode('aim');
-$('quickToggle').onclick=()=>{const open=$('quickPanel').classList.toggle('open');$('quickToggle').setAttribute('aria-expanded',String(open));$('quickToggle').textContent=open?'✕ 閉じる':'☰ 手順'};
+let dockDrag=null,suppressDockClick=false;
+const dock=$('quickDock'),dockHandle=$('quickToggle');
+function restoreDockPosition(){
+ try{const saved=JSON.parse(localStorage.getItem('shotGuideDockPosition')||'null');if(saved&&Number.isFinite(saved.left)&&Number.isFinite(saved.top)){const maxL=Math.max(0,innerWidth-dock.offsetWidth),maxT=Math.max(0,innerHeight-dock.offsetHeight);dock.style.left=Math.max(0,Math.min(maxL,saved.left))+'px';dock.style.top=Math.max(0,Math.min(maxT,saved.top))+'px';dock.style.right='auto';dock.style.bottom='auto';dock.classList.add('moved')}}catch(e){}
+}
+function moveDock(e){if(!dockDrag)return;const dx=e.clientX-dockDrag.x,dy=e.clientY-dockDrag.y;if(!dockDrag.moved&&Math.hypot(dx,dy)<7)return;if(!dockDrag.moved){dockDrag.moved=true;dockHandle.classList.add('dragging');dock.style.right='auto';dock.style.bottom='auto'}const left=Math.max(0,Math.min(innerWidth-dock.offsetWidth,dockDrag.left+dx));const top=Math.max(0,Math.min(innerHeight-dock.offsetHeight,dockDrag.top+dy));dock.style.left=left+'px';dock.style.top=top+'px';}
+dockHandle.addEventListener('pointerdown',e=>{if(e.button!==undefined&&e.button!==0)return;const r=dock.getBoundingClientRect();dockDrag={x:e.clientX,y:e.clientY,left:r.left,top:r.top,moved:false};try{dockHandle.setPointerCapture(e.pointerId)}catch(err){}});
+dockHandle.addEventListener('pointermove',moveDock);
+function finishDockDrag(){if(!dockDrag)return;if(dockDrag.moved){suppressDockClick=true;dockHandle.classList.remove('dragging');try{localStorage.setItem('shotGuideDockPosition',JSON.stringify({left:parseFloat(dock.style.left)||0,top:parseFloat(dock.style.top)||0}))}catch(e){}setTimeout(()=>{suppressDockClick=false},0)}dockDrag=null;}
+dockHandle.addEventListener('pointerup',finishDockDrag);dockHandle.addEventListener('pointercancel',finishDockDrag);
+dockHandle.onclick=()=>{if(suppressDockClick)return;const open=$('quickPanel').classList.toggle('open');dockHandle.setAttribute('aria-expanded',String(open));dockHandle.textContent=open?'✕ 閉じる':'☰ 手順'};
+window.addEventListener('resize',()=>{if(!dock.classList.contains('moved'))return;const r=dock.getBoundingClientRect();const left=Math.max(0,Math.min(innerWidth-dock.offsetWidth,r.left));const top=Math.max(0,Math.min(innerHeight-dock.offsetHeight,r.top));dock.style.left=left+'px';dock.style.top=top+'px'});
+restoreDockPosition();
+$('recentPrompt').style.display='flex';
 $('undo').onclick=()=>{blocks.pop();render()};$('remove').onclick=()=>{blocks=[];render()};
 $('clear').onclick=()=>{image=null;bounds=null;pendingBounds=null;$('wallConfirm').disabled=true;$('quickWallConfirm').disabled=true;shot=null;aim=null;blocks=[];fitImage(600,800);setStatus('画像を選択してください。');setMode('wall')};
 $('reflections').oninput=e=>{maxRef=+e.target.value;$('rv').textContent=maxRef+'回';render()};
@@ -341,13 +373,6 @@ $('show').onchange=render;$('dots').onchange=render;
 $('save').onclick=()=>{if(!image){setStatus('先にスクショを読み込んでください');return}const a=document.createElement('a');a.download='shot-guide.png';a.href=canvas.toDataURL('image/png');a.click()};
 fitImage(600,800);render();
 })();
-</script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.warn('Service Worker registration failed:', err));
-  });
-}
 </script>
 </body>
 </html>
