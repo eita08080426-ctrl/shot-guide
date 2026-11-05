@@ -130,6 +130,7 @@ const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext(
 let image=null,bounds=null,pendingBounds=null,shot=null,aim=null,blocks=[],mode='wall',first=null,dragging=false,selecting=false,selectStart=null,selectCurrent=null;
 let cropSource=null,cropRect=null,cropDrag=null,cropLoadState=null;
 let maxRef=10,maxDist=10000,lineWidth=2;
+function launchRadius(){return Math.max(30,canvas.width*.075)}
 function setStatus(s){$('status').textContent=s}
 function syncAimZone(){
  if(mode!=='aim'||!bounds){aimZone.style.display='none';aimZone.style.pointerEvents='none';return}
@@ -200,20 +201,22 @@ function render(){
  for(const b of blocks){ctx.fillStyle='rgba(255,145,70,.18)';ctx.fillRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1);ctx.strokeStyle='#ff9850';ctx.lineWidth=2;ctx.strokeRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1)}
  const result=calculate();
  if(result&&$('show').checked){
-  // モンスト風：細い半透明の白い軌道。光彩は控えめにして背景を隠さない。
+  // 発射位置の円の直径を基準に、キャラクターの判定幅に近い太さで軌道を描く。
+  // 線の太さスライダーは円の半径に対する倍率として扱う（初期値2で直径と同じ）。
+  const trajectoryWidth=launchRadius()*lineWidth;
   ctx.save();
   ctx.lineCap='round';ctx.lineJoin='round';
   // 1反射目までを明るいシアンにして、白い2反射目以降と見分けやすくする。
   if(result.points.length>1){
    ctx.beginPath();ctx.moveTo(result.points[0].x,result.points[0].y);ctx.lineTo(result.points[1].x,result.points[1].y);
-   ctx.strokeStyle='rgba(65,220,255,.42)';ctx.lineWidth=lineWidth+5;ctx.shadowColor='rgba(65,220,255,.9)';ctx.shadowBlur=7;ctx.stroke();
-   ctx.shadowBlur=0;ctx.strokeStyle='rgba(75,225,255,.98)';ctx.lineWidth=lineWidth;ctx.stroke();
+   ctx.strokeStyle='rgba(65,220,255,.24)';ctx.lineWidth=trajectoryWidth+5;ctx.shadowColor='rgba(65,220,255,.9)';ctx.shadowBlur=7;ctx.stroke();
+   ctx.shadowBlur=0;ctx.strokeStyle='rgba(75,225,255,.82)';ctx.lineWidth=trajectoryWidth;ctx.stroke();
   }
   if(result.points.length>2){
    ctx.beginPath();ctx.moveTo(result.points[1].x,result.points[1].y);
    result.points.slice(2).forEach(p=>ctx.lineTo(p.x,p.y));
-   ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=lineWidth+3;ctx.shadowColor='rgba(255,255,255,.55)';ctx.shadowBlur=5;ctx.stroke();
-   ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=lineWidth;ctx.stroke();
+   ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=trajectoryWidth+3;ctx.shadowColor='rgba(255,255,255,.55)';ctx.shadowBlur=5;ctx.stroke();
+   ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.72)';ctx.lineWidth=trajectoryWidth;ctx.stroke();
   }
   ctx.restore();
   // 反射地点は見やすい大きめの白いリングで示す。
@@ -225,7 +228,7 @@ function render(){
  }
  // 発射位置：キャラクター全体を囲う白い円。中心座標は計算用に維持。
  if(shot){
-  const r=Math.max(30,canvas.width*.075);
+  const r=launchRadius();
   ctx.save();
   ctx.beginPath();ctx.arc(shot.x,shot.y,r,0,Math.PI*2);
   ctx.strokeStyle='rgba(255,255,255,.96)';
@@ -250,7 +253,7 @@ async function loadFile(file){
    try{source=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('ブラウザがこの画像形式を開けませんでした'));im.src=url})}
    finally{URL.revokeObjectURL(url)}
   }
-  cropLoadState={previousWidth,previousHeight,savedBounds};openCropper(source);
+  cropSource=source;cropLoadState={previousWidth,previousHeight,savedBounds};finishCrop(false);
  }catch(err){setStatus('読み込み失敗：'+(err&&err.message?err.message:'画像を開けませんでした')+'。スクショをJPEGまたはPNGとして保存して再試行してください。')}
 }
 function openCropper(source){
