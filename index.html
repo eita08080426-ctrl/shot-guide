@@ -83,7 +83,7 @@ small{color:var(--muted);line-height:1.5}
     <b>軌道設定</b>
     <label class="range"><span>最大反射回数</span><b id="rv">10回</b><input id="reflections" type="range" min="1" max="30" value="10"></label>
     <label class="range"><span>予測距離</span><b id="dv">10000</b><input id="distance" type="range" min="1000" max="30000" step="500" value="10000"></label>
-    <label class="range"><span>線の太さ</span><b id="wv">2</b><input id="width" type="range" min="1" max="5" value="2"></label>
+    <label class="range"><span>線の太さ</span><b id="wv">3</b><input id="width" type="range" min="1" max="8" value="3"></label>
     <p><label><input id="show" type="checkbox" checked> 予測線を表示</label>　<label><input id="dots" type="checkbox" checked> 反射地点を表示</label></p>
   </section>
   <section class="panel">
@@ -128,7 +128,7 @@ small{color:var(--muted);line-height:1.5}
 const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext('2d'),aimZone=$('aimZone'),cropCanvas=$('cropStage'),cropCtx=cropCanvas.getContext('2d');
 let image=null,bounds=null,pendingBounds=null,shot=null,aim=null,blocks=[],mode='wall',first=null,dragging=false,selecting=false,selectStart=null,selectCurrent=null;
 let cropSource=null,cropRect=null,cropDrag=null,cropLoadState=null;
-let maxRef=10,maxDist=10000,lineWidth=2;
+let maxRef=10,maxDist=10000,lineWidth=3;
 function setStatus(s){$('status').textContent=s}
 function syncAimZone(){
  if(mode!=='aim'||!bounds){aimZone.style.display='none';aimZone.style.pointerEvents='none';return}
@@ -213,14 +213,14 @@ function render(){
    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
    pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
    ctx.strokeStyle='rgba(125,225,255,.28)';
-   ctx.lineWidth=Math.max(5,lineWidth*3.7);
+   ctx.lineWidth=Math.max(12,lineWidth*5.2);
    ctx.shadowColor='rgba(150,235,255,.16)';ctx.shadowBlur=2;ctx.stroke();
    // ガラス表面の淡いハイライト
    ctx.shadowBlur=0;ctx.strokeStyle='rgba(225,250,255,.24)';
-   ctx.lineWidth=Math.max(1.4,lineWidth*.95);ctx.stroke();
+   ctx.lineWidth=Math.max(2.4,lineWidth*1.25);ctx.stroke();
    // 中央ラインは黒。背景を完全に塗りつぶさない濃さにする。
    ctx.strokeStyle='rgba(8,18,28,.78)';
-   ctx.lineWidth=Math.max(1.1,lineWidth*.72);ctx.stroke();
+   ctx.lineWidth=Math.max(2.1,lineWidth*1.05);ctx.stroke();
   };
   drawGlassPath(result.points);
   ctx.restore();
