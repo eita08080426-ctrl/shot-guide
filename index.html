@@ -80,7 +80,7 @@ function setStatus(s){$('status').textContent=s}
 function setMode(m){
  mode=m;first=null;
  ['wall','start','block','aim'].forEach(k=>$(''+k).classList.toggle('active',k===m));
- const msg={wall:'壁の範囲を指でなぞってください。',start:'自分のキャラクターの中心をタップしてください。',block:'ブロックの左上、右下の順に2か所タップしてください。',aim:'発射位置からドラッグして狙いを決めてください。'};
+ const msg={wall:'壁の範囲を指でなぞってください。',start:'キャラクターの中心をタップしてください。外周を囲む円形ガイドが表示されます。',block:'ブロックの左上、右下の順に2か所タップしてください。',aim:'発射位置からドラッグして狙いを決めてください。'};
  $('hint').textContent=msg[m];render();
 }
 function fitImage(w,h){
@@ -142,25 +142,21 @@ function render(){
   ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=lineWidth+3;ctx.shadowColor='rgba(255,255,255,.55)';ctx.shadowBlur=5;ctx.stroke();
   ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=lineWidth;ctx.stroke();
   ctx.restore();
-  // 反射地点は小さな白いリングで示す。
+  // 反射地点は見やすい大きめの白いリングで示す。
   if($('dots').checked)result.points.slice(1).forEach(p=>{
-   ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,5.5,0,Math.PI*2);
-   ctx.strokeStyle='rgba(255,255,255,.72)';ctx.lineWidth=1.2;ctx.stroke();
-   ctx.beginPath();ctx.arc(p.x,p.y,1.5,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.8)';ctx.fill();ctx.restore();
+   ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,18,0,Math.PI*2);
+   ctx.strokeStyle='rgba(255,255,255,.92)';ctx.lineWidth=2.5;ctx.shadowColor='rgba(255,255,255,.75)';ctx.shadowBlur=6;ctx.stroke();
+   ctx.shadowBlur=0;ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.92)';ctx.fill();ctx.restore();
   });
  }
- // 発射位置は単なる点ではなく、青紫に光る小さな球体として描画。
+ // 発射位置：キャラクター全体を囲う白い円。中心座標は計算用に維持。
  if(shot){
-  const r=Math.max(13,canvas.width/43);
+  const r=Math.max(30,canvas.width*.075);
   ctx.save();
-  const glow=ctx.createRadialGradient(shot.x,shot.y,1,shot.x,shot.y,r*2.4);
-  glow.addColorStop(0,'rgba(111,221,255,.48)');glow.addColorStop(.55,'rgba(95,133,255,.2)');glow.addColorStop(1,'rgba(95,133,255,0)');
-  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(shot.x,shot.y,r*2.4,0,Math.PI*2);ctx.fill();
-  const ball=ctx.createRadialGradient(shot.x-r*.35,shot.y-r*.42,r*.08,shot.x,shot.y,r);
-  ball.addColorStop(0,'#ffffff');ball.addColorStop(.18,'#b9f4ff');ball.addColorStop(.48,'#55bfff');ball.addColorStop(.78,'#5869d9');ball.addColorStop(1,'#272d78');
-  ctx.beginPath();ctx.arc(shot.x,shot.y,r,0,Math.PI*2);ctx.fillStyle=ball;ctx.shadowColor='rgba(115,204,255,.9)';ctx.shadowBlur=12;ctx.fill();
-  ctx.shadowBlur=0;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=1.4;ctx.stroke();
-  ctx.beginPath();ctx.ellipse(shot.x-r*.25,shot.y-r*.42,r*.3,r*.15,-.55,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.82)';ctx.fill();
+  ctx.beginPath();ctx.arc(shot.x,shot.y,r,0,Math.PI*2);
+  ctx.strokeStyle='rgba(255,255,255,.96)';
+  ctx.lineWidth=Math.max(2,canvas.width*.004);
+  ctx.shadowColor='rgba(255,255,255,.7)';ctx.shadowBlur=7;ctx.stroke();
   ctx.restore();
  }
  if(shot&&aim){ctx.save();ctx.beginPath();ctx.moveTo(shot.x,shot.y);ctx.lineTo(aim.x,aim.y);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.stroke();ctx.restore()}
