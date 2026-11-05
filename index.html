@@ -175,7 +175,12 @@ function rayRect(x,y,vx,vy,r){
 function calculate(){
  if(!bounds||!shot||!aim)return null;
  let dx=shot.x-aim.x,dy=shot.y-aim.y,L=Math.hypot(dx,dy);if(L<2)return null;
- let vx=dx/L,vy=dy/L,x=shot.x,y=shot.y,remaining=maxDist,hits=0,total=0;
+ // 角度を0.35°刻みに丸め、その角度を実際の軌道計算にも使用する。
+ const rawAngle=(Math.atan2(-dy,dx)*180/Math.PI+360)%360;
+ const angle=(Math.round(rawAngle/0.35)*0.35)%360;
+ const rad=angle*Math.PI/180;
+ let vx=Math.cos(rad),vy=-Math.sin(rad),x=shot.x,y=shot.y,remaining=maxDist,hits=0,total=0;
+ const aimEnd={x:shot.x-vx*L,y:shot.y-vy*L};
  const points=[{x,y}];
  for(let n=0;n<500&&remaining>0&&hits<maxRef;n++){
   let candidates=[],h=rayRect(x,y,vx,vy,bounds);if(h)candidates.push(h);
@@ -187,7 +192,7 @@ function calculate(){
   if(hit.axis===0)vx=-vx;else vy=-vy;
   hits++;const epsilon=.05;x+=vx*epsilon;y+=vy*epsilon;remaining-=epsilon;
  }
- return{points,hits,total,angle:(Math.atan2(-dy,dx)*180/Math.PI+360)%360};
+ return{points,hits,total,angle,aimEnd};
 }
 function render(){
  ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -208,14 +213,14 @@ function render(){
    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
    pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
    ctx.strokeStyle='rgba(125,225,255,.28)';
-   ctx.lineWidth=Math.max(4,lineWidth*3.2);
+   ctx.lineWidth=Math.max(5,lineWidth*3.7);
    ctx.shadowColor='rgba(150,235,255,.16)';ctx.shadowBlur=2;ctx.stroke();
    // ガラス表面の淡いハイライト
    ctx.shadowBlur=0;ctx.strokeStyle='rgba(225,250,255,.24)';
-   ctx.lineWidth=Math.max(1.2,lineWidth*.85);ctx.stroke();
+   ctx.lineWidth=Math.max(1.4,lineWidth*.95);ctx.stroke();
    // 中央ラインは黒。背景を完全に塗りつぶさない濃さにする。
    ctx.strokeStyle='rgba(8,18,28,.78)';
-   ctx.lineWidth=Math.max(1,lineWidth*.62);ctx.stroke();
+   ctx.lineWidth=Math.max(1.1,lineWidth*.72);ctx.stroke();
   };
   drawGlassPath(result.points);
   ctx.restore();
@@ -236,8 +241,8 @@ function render(){
   ctx.shadowColor='rgba(255,255,255,.7)';ctx.shadowBlur=7;ctx.stroke();
   ctx.restore();
  }
- if(shot&&aim){ctx.save();ctx.beginPath();ctx.moveTo(shot.x,shot.y);ctx.lineTo(aim.x,aim.y);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.stroke();ctx.restore()}
- $('angle').textContent=result?result.angle.toFixed(1)+'°':'—';$('count').textContent=result?result.hits+'回':'—';$('travel').textContent=result?Math.round(result.total)+'px':'—';
+ if(shot&&aim&&result){ctx.save();ctx.beginPath();ctx.moveTo(shot.x,shot.y);ctx.lineTo(result.aimEnd.x,result.aimEnd.y);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.stroke();ctx.restore()}
+ $('angle').textContent=result?result.angle.toFixed(2)+'°':'—';$('count').textContent=result?result.hits+'回':'—';$('travel').textContent=result?Math.round(result.total)+'px':'—';
  syncAimZone();
 }
 async function loadFile(file){
