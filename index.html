@@ -58,6 +58,8 @@ small{color:var(--muted);line-height:1.5}
     <label class="range"><span>最大反射回数</span><b id="rv">10回</b><input id="reflections" type="range" min="1" max="30" value="10"></label>
     <label class="range"><span>予測距離</span><b id="dv">10000</b><input id="distance" type="range" min="1000" max="30000" step="500" value="10000"></label>
     <label class="range"><span>線の太さ</span><b id="wv">2</b><input id="width" type="range" min="1" max="5" value="2"></label>
+    <label class="range"><span>発射位置の円の大きさ</span><b id="sr">7.5%</b><input id="startRadius" type="range" min="3" max="15" step="0.5" value="7.5"></label>
+    <label class="range"><span>反射地点の円の大きさ</span><b id="rr">18px</b><input id="reflectionRadius" type="range" min="8" max="40" value="18"></label>
     <p><label><input id="show" type="checkbox" checked> 予測線を表示</label>　<label><input id="dots" type="checkbox" checked> 反射地点を表示</label></p>
   </section>
   <section class="panel">
@@ -75,7 +77,7 @@ small{color:var(--muted);line-height:1.5}
 (()=>{
 const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext('2d');
 let image=null,bounds=null,shot=null,aim=null,blocks=[],mode='wall',first=null,dragging=false,selecting=false,selectStart=null,selectCurrent=null;
-let maxRef=10,maxDist=10000,lineWidth=2;
+let maxRef=10,maxDist=10000,lineWidth=2,startRadiusRatio=0.075,reflectionRadius=18;
 function setStatus(s){$('status').textContent=s}
 function setMode(m){
  mode=m;first=null;
@@ -144,19 +146,19 @@ function render(){
   ctx.restore();
   // 反射地点は見やすい大きめの白いリングで示す。
   if($('dots').checked)result.points.slice(1).forEach(p=>{
-   ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,18,0,Math.PI*2);
-   ctx.strokeStyle='rgba(255,255,255,.92)';ctx.lineWidth=2.5;ctx.shadowColor='rgba(255,255,255,.75)';ctx.shadowBlur=6;ctx.stroke();
-   ctx.shadowBlur=0;ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.92)';ctx.fill();ctx.restore();
+   ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,reflectionRadius,0,Math.PI*2);
+   ctx.strokeStyle='rgba(255,255,255,.58)';ctx.lineWidth=2;ctx.shadowColor='rgba(255,255,255,.28)';ctx.shadowBlur=4;ctx.stroke();
+   ctx.shadowBlur=0;ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.58)';ctx.fill();ctx.restore();
   });
  }
  // 発射位置：キャラクター全体を囲う白い円。中心座標は計算用に維持。
  if(shot){
-  const r=Math.max(30,canvas.width*.075);
+  const r=Math.max(18,canvas.width*startRadiusRatio);
   ctx.save();
   ctx.beginPath();ctx.arc(shot.x,shot.y,r,0,Math.PI*2);
-  ctx.strokeStyle='rgba(255,255,255,.96)';
+  ctx.strokeStyle='rgba(255,255,255,.58)';
   ctx.lineWidth=Math.max(2,canvas.width*.004);
-  ctx.shadowColor='rgba(255,255,255,.7)';ctx.shadowBlur=7;ctx.stroke();
+  ctx.shadowColor='rgba(255,255,255,.28)';ctx.shadowBlur=4;ctx.stroke();
   ctx.restore();
  }
  if(shot&&aim){ctx.save();ctx.beginPath();ctx.moveTo(shot.x,shot.y);ctx.lineTo(aim.x,aim.y);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.stroke();ctx.restore()}
@@ -223,6 +225,8 @@ $('clear').onclick=()=>{image=null;bounds=null;shot=null;aim=null;blocks=[];fitI
 $('reflections').oninput=e=>{maxRef=+e.target.value;$('rv').textContent=maxRef+'回';render()};
 $('distance').oninput=e=>{maxDist=+e.target.value;$('dv').textContent=maxDist;render()};
 $('width').oninput=e=>{lineWidth=+e.target.value;$('wv').textContent=lineWidth;render()};
+$('startRadius').oninput=e=>{startRadiusRatio=+e.target.value/100;$('sr').textContent=e.target.value+'%';render()};
+$('reflectionRadius').oninput=e=>{reflectionRadius=+e.target.value;$('rr').textContent=reflectionRadius+'px';render()};
 $('show').onchange=render;$('dots').onchange=render;
 $('save').onclick=()=>{if(!image){setStatus('先にスクショを読み込んでください');return}const a=document.createElement('a');a.download='shot-guide.png';a.href=canvas.toDataURL('image/png');a.click()};
 fitImage(600,800);render();
